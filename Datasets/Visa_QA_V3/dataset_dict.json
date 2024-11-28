@@ -1,1 +1,1 @@
-{"splits": ["train", "eval", "test"]}
+{"splits": ["train", "validation", "test"]}
