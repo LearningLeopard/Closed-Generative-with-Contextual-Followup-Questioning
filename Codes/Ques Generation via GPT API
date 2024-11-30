@@ -1,0 +1,37 @@
+#pip install openai
+
+import openai
+
+# Set up OpenAI API key (replace YOUR_API_KEY with your actual API key)
+openai.api_key = "YOUR_API_KEY"
+
+# Function to generate follow-up question using GPT-3
+def generate_follow_up_question(question, answer):
+    # Prepare the prompt to feed into GPT-3
+    prompt = f"""
+    Here is a question-answer pair:
+    Question: {question}
+    Answer: {answer}
+    Please generate a relevant follow-up question to ask the user for more details or clarification.
+    """
+    
+    # Make the API request to OpenAI's GPT-3 model
+    response = openai.Completion.create(
+        engine="text-davinci-003",  # You can also use "gpt-4" if you have access
+        prompt=prompt,
+        max_tokens=100,  # Maximum number of tokens for the follow-up question
+        n=1,  # Generate one completion
+        stop=None,  # Let the model decide where to stop
+        temperature=0.7  # Controls randomness in the output (0.7 is a balanced value)
+    )
+    
+    # Extract and return the generated follow-up question
+    follow_up_question = response.choices[0].text.strip()
+    return follow_up_question
+
+# Example usage
+question = "What is the process for DACA?"
+answer = "The process for DACA involves filing Form I-821D for deferred action."
+follow_up_question = generate_follow_up_question(question, answer)
+
+print("Generated Follow-Up Question:", follow_up_question)
