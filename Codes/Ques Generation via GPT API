@@ -3,7 +3,7 @@
 import openai
 
 # Set up OpenAI API key (replace YOUR_API_KEY with your actual API key)
-openai.api_key = "YOUR_API_KEY"
+openai.api_key = "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"
 
 # Function to generate follow-up question using GPT-3
 def generate_follow_up_question(question, answer):
