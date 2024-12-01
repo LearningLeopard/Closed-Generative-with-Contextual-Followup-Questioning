@@ -13,9 +13,11 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 import torch
 import numpy as np
+import json
+import os
 
 # %%
-CHECKPOINT = "google-bert/bert-large-cased-whole-word-masking-finetuned-squad"
+CHECKPOINT = "google-bert/bert-large-uncased-whole-word-masking-finetuned-squad"
 # Model card: https://huggingface.co/google-bert/bert-large-cased-whole-word-masking-finetuned-squad
 
 # %%
@@ -72,18 +74,20 @@ filtered_preprocessed_visa_qa
 # %%
 ## Data Collator for dynamic input adjustment
 data_collator = DataCollatorWithPadding(checkpoint_model_tokenizer)
-TRAIN_BATCH_SIZE = 8
+TRAIN_BATCH_SIZE = 32
 VAL_BATCH_SIZE = 32
 train_dataloader = DataLoader(filtered_preprocessed_visa_qa['train'],
                               shuffle=True,
                               batch_size=TRAIN_BATCH_SIZE,
-                              collate_fn=data_collator
+                              collate_fn=data_collator,
+                              drop_last=True
                               )
 
 val_dataloader = DataLoader(filtered_preprocessed_visa_qa['validation'],
                               shuffle=True,
                               batch_size=VAL_BATCH_SIZE,
-                              collate_fn=data_collator
+                              collate_fn=data_collator,
+                              drop_last=True
                               )
 
 # %%
@@ -94,10 +98,17 @@ class CorrectnessModuleLLM(nn.Module):
         bert_config = AutoConfig.from_pretrained(checkpoint, output_attention=True, output_hidden_states=False)
         self.embedding_body = AutoModel.from_pretrained(checkpoint, 
                                                         config=bert_config)
-        self.logit_transform = nn.Linear(in_features = bert_config.hidden_size, 
-                                         out_features = 1,
+        self.dense_hidden_1 = nn.Linear(in_features=bert_config.hidden_size, 
+                                        out_features=512,
+                                        bias=True)
+        self.dense_hidden_activation_1 = nn.Tanh()
+        self.dense_hidden_2 = nn.Linear(in_features=512, 
+                                        out_features=64,
+                                        bias=True)
+        self.dense_hidden_activation_2 = nn.ReLU()
+        self.logit_transform = nn.Linear(in_features=64, 
+                                         out_features=1,
                                          bias=True)
-        # self.output_transform = nn.Sigmoid()
         return
     
     def forward(self: Type["CorrectnessModuleLLM"],
@@ -106,30 +117,47 @@ class CorrectnessModuleLLM(nn.Module):
                 token_type_ids) -> Tensor:
         llm_embeddings = self.embedding_body(input_ids=input_ids,
                                              attention_mask=attention_mask,
-                                             token_type_ids = token_type_ids)
+                                             token_type_ids=token_type_ids)
         cls_token_output = llm_embeddings.last_hidden_state[:, 0, :]
-        logits = self.logit_transform(cls_token_output)
-        # output_prob = self.output_transform(logits)
+        dense_intermediate_1 = self.dense_hidden_1(cls_token_output)
+        dense_intermediate_activated_1 = self.dense_hidden_activation_1(dense_intermediate_1)
+        dense_intermediate_2 = self.dense_hidden_2(dense_intermediate_activated_1)
+        dense_intermediate_activated_2 = self.dense_hidden_activation_2(dense_intermediate_2)
+        logits = self.logit_transform(dense_intermediate_activated_2)
         return logits
 
-    def save_pretrained(self, save_directory):
-        # Save the base model and configuration
+    def save_pretrained(self, save_directory: str) -> None:
+        """
+        Save the model's base transformer and custom layers.
+        """
+        os.makedirs(save_directory, exist_ok=True)
+        # Save the transformer part
         self.embedding_body.save_pretrained(save_directory)
-        # Save the custom layers' weights
+        # Save the custom layers
+        torch.save(self.dense_hidden_1.state_dict(), f"{save_directory}/dense_hidden_1.pt")
+        torch.save(self.dense_hidden_2.state_dict(), f"{save_directory}/dense_hidden_2.pt")
         torch.save(self.logit_transform.state_dict(), f"{save_directory}/logit_transform.pt")
-        # torch.save(self.output_transform.state_dict(), f"{save_directory}/output_transform.pt")
-    
+        # Save the activations (optional, if needed for any configuration metadata)
+        # Save any additional model configuration (if applicable)
+        config = {"hidden_activation_1": "tanh", "hidden_activation_1": "ReLU", "output_activation": "relu"}  
+        with open(f"{save_directory}/custom_config.json", "w") as f:
+            json.dump(config, f)
+
     @classmethod
-    def from_pretrained(cls, save_directory, *model_args, **kwargs):
-        # Load the configuration
+    def from_pretrained(cls, save_directory: str, *model_args, **kwargs) -> Type["CorrectnessModuleLLM"]:
+        """
+        Load the model's base transformer and custom layers.
+        """
+        # Load transformer configuration
         config = AutoConfig.from_pretrained(save_directory)
-        config.checkpoint = save_directory  # Ensure checkpoint is set
-        model = cls(config)
-        # Load base model weights
+        # Initialize the model
+        model = cls(checkpoint=save_directory)
+        # Load transformer weights
         model.embedding_body = AutoModel.from_pretrained(save_directory, config=config)
-        # Load custom layers' weights
+        # Load custom layer weights
+        model.dense_hidden_1.load_state_dict(torch.load(f"{save_directory}/dense_hidden_1.pt"))
+        model.dense_hidden_2.load_state_dict(torch.load(f"{save_directory}/dense_hidden_2.pt"))
         model.logit_transform.load_state_dict(torch.load(f"{save_directory}/logit_transform.pt"))
-        # model.output_transform.load_state_dict(torch.load(f"{save_directory}/output_transform.pt"))
         return model
 
 # %%
@@ -140,7 +168,7 @@ if torch.cuda.is_available():
     correctness_model = correctness_model.to("cuda")
 
 # %%
-optimizer = AdamW(correctness_model.parameters(), lr=5e-5)
+optimizer = AdamW(correctness_model.parameters(), lr=5e-3)
 
 num_epochs = 30
 num_training_steps = num_epochs * len(train_dataloader)
@@ -183,12 +211,12 @@ for epoch in range(1, num_epochs+1):
 
         progress_bar_eval.update(1)
     if epoch % 5 == 0:
-        correctness_model.save_pretrained(f"../Model_Checkpoints/correctness-module-checkpoints/bert-correctness-{epoch}")
+        correctness_model.save_pretrained(f"../Model_Checkpoints/correctness-module-checkpoints-bert-uncased/bert-correctness-batch_32_{epoch}")
     print("====== Epoch: ", epoch, " ======")
-    print(f"Training MSE: {train_loss_accum}")
-    print(f"Validation MSE: {val_loss_accum}")
-    training_loss_history.append(train_loss_accum.item())
-    validation_loss_history.append(val_loss_accum.item())
+    print(f"Training RMSE: {torch.sqrt(train_loss_accum)}")
+    print(f"Validation RMSE: {torch.sqrt(val_loss_accum)}")
+    training_loss_history.append(torch.sqrt(train_loss_accum).item())
+    validation_loss_history.append(torch.sqrt(val_loss_accum).item())
 
 plt.figure(figsize=[6,6])
 plt.grid()
@@ -199,5 +227,5 @@ plt.ylabel("Loss")
 plt.xlabel("Epochs")
 plt.legend(['train', 'val'])
 plt.show()
-plt.savefig('../Graph_outputs/Correctness_module_Loss_history.png', bbox_inches='tight')
+plt.savefig('../Graph_outputs/Correctness_module_bert_uncased_Loss_history_32_5e3.png', bbox_inches='tight')
 
