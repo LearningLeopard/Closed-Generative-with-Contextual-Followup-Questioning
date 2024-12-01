@@ -1,4 +1,39 @@
-#pip install openai
+
+import openai
+import os
+
+# Set the API key (either through environment variable or directly)
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Ensure that the API key is set in your environment or set directly in the script.
+
+# Function to generate a follow-up question based on the provided question and answer
+def generate_follow_up_question(question, answer):
+    prompt = f"Question: {question}\nAnswer: {answer}\nGenerate a follow-up question related to the answer."
+    
+    try:
+        # Use the new method for OpenAI API call
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # You can use "gpt-4" if you have access
+            messages=[{"role": "system", "content": "You are a helpful assistant."},
+                      {"role": "user", "content": prompt}],
+            max_tokens=100
+        )
+        
+        # Extract and return the generated follow-up question
+        follow_up_question = response['choices'][0]['message']['content'].strip()
+        return follow_up_question
+    
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return None
+
+# Example usage
+question = "What is the process for DACA?"
+answer = "The process for DACA involves filing Form I-821D for deferred action."
+follow_up_question = generate_follow_up_question(question, answer)
+
+print("Generated Follow-Up Question:", follow_up_question)
+
+'''#pip install openai
 
 import openai
 
@@ -34,4 +69,5 @@ question = "What is the process for DACA?"
 answer = "The process for DACA involves filing Form I-821D for deferred action."
 follow_up_question = generate_follow_up_question(question, answer)
 
-print("Generated Follow-Up Question:", follow_up_question)
+print("Generated Follow-Up Question:", follow_up_question)'''
+
