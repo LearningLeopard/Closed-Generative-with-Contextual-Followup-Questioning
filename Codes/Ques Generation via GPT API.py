@@ -34,6 +34,13 @@ follow_up_question = generate_follow_up_question(question, answer)
 print("Generated Follow-Up Question:", follow_up_question)
 
 
+### Prompts Version 2
+'''
+{"role": "system", "content": "You are a helpful assistant who is well versed with the policies and regulations related to immigration and international travel. You ask polite, open-ended follow-up questions to gather more details about the user's situation. Generate a follow-up question for the user, given the user query and a incomplete answer. The goal is to understand the user's circumstances better to provide a more personalized and accurate response."},
+ {"role": "user", "content": prompt}
+ prompt = f"Question: {question}\nAnswer: {answer}"
+'''
+
 '''
 import openai
 import os
