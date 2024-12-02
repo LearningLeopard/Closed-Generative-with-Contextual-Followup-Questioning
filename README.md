@@ -1,8 +1,8 @@
-# CS505-NLP-Research-Q-and-A
-This repo consists of all the resources utilized for CS 505 NLP course research paper
+# Question Answering via intrinsic contextual follow-up questioning
+This repo proposes a model architecture which prompts the user with a follow up question for better context on the query by deciding internally wheather to ask a question or not. This is done by combining multiple moodules with different tasks in a single pipeline to ensure better answering in closed generative question answering task.
 
 ## Data Extraction BigQuery
-### [Version - 1](https://data.stackexchange.com/travel/query/1875546/visa-questions)
+## [Version - 1](https://data.stackexchange.com/travel/query/1875546/visa-questions)
 ```
 SELECT TOP 10
   q.Score AS [QScore],
@@ -27,7 +27,7 @@ WHERE
   OR q.Body LIKE '%immigration%';
 
 ```
-### [Version - 2](https://data.stackexchange.com/travel/query/1875545/visa-question-and-answers)
+## [Version - 2](https://data.stackexchange.com/travel/query/1875545/visa-question-and-answers)
 ```
 SELECT
   q.Score AS [QScore],
@@ -55,3 +55,5 @@ WHERE
   OR q.Body LIKE '%passport%';
 
 ```
+# Credits and Acknowledgements
+This project has been developed as part of CS 505 Introduction to Natural Langugage processing under the guidance of Professor Andrew Wood at Boston University.
