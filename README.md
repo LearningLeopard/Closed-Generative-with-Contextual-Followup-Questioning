@@ -2,6 +2,7 @@
 This repo proposes a model architecture which prompts the user with a follow up question for better context on the query by deciding internally wheather to ask a question or not. This is done by combining multiple moodules with different tasks in a single pipeline to ensure better answering in closed generative question answering task.
 
 ## Data Extraction BigQuery
+The dataset has been extracted from the Stack Exchange Data Explorer. The queries utilized in the extraction are given below. All the extracted datasets are listed under the `Datasets` folder
 ## [Version - 1](https://data.stackexchange.com/travel/query/1875546/visa-questions)
 ```
 SELECT TOP 10
